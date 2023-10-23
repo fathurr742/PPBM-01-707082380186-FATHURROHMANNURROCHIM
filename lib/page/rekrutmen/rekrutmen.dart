@@ -17,6 +17,7 @@ class _RekrutmenState extends State<Rekrutmen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _instagramController = TextEditingController();
+  int? _genderValue;
   String? dropdownValue;
 
   @override
@@ -166,6 +167,41 @@ class _RekrutmenState extends State<Rekrutmen> {
                   onChanged: (String? newValue) {
                     setState(() {
                       dropdownValue = newValue!;
+                    });
+                  },
+                ),
+              ),
+              SizedBox(
+                height: 20,
+              ),
+              ListTileTheme(
+                dense: true,
+                child: RadioListTile(
+                  title: Text(
+                    'Laki - Laki',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  value: 1,
+                  groupValue: _genderValue,
+                  onChanged: (value) {
+                    setState(() {
+                      _genderValue = value;
+                    });
+                  },
+                ),
+              ),
+              ListTileTheme(
+                dense: true,
+                child: RadioListTile(
+                  title: Text(
+                    'Perempuan',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  value: 2,
+                  groupValue: _genderValue,
+                  onChanged: (value) {
+                    setState(() {
+                      _genderValue = value;
                     });
                   },
                 ),
