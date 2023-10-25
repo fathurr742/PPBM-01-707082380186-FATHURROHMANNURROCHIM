@@ -1,10 +1,12 @@
-// ignore_for_file: file_names, unused_field
+import 'package:bcrypt/bcrypt.dart';
 
 import 'package:flutter/material.dart';
 import 'package:manekin/page/login-page.dart';
+import 'package:mysql1/mysql1.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MyRegisterPage extends StatefulWidget {
-  const MyRegisterPage({super.key});
+  const MyRegisterPage({Key? key}) : super(key: key);
 
   @override
   State<MyRegisterPage> createState() => _MyRegisterPageState();
@@ -12,10 +14,132 @@ class MyRegisterPage extends StatefulWidget {
 
 class _MyRegisterPageState extends State<MyRegisterPage> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+
+  Future<void> _register() async {
+    final email = _emailController.text;
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (password != confirmPassword) {
+      showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+                title: const Text("Error"),
+                content:
+                    const Text("Password and Confirm Password must be same"),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text("OK"),
+                  ),
+                ],
+              ));
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('email', email);
+    await prefs.setString('password', password);
+
+    final setting = ConnectionSettings(
+      host: '10.20.114.26',
+      user: 'flutter',
+      password: 'malammakan',
+      db: 'latihan_flutter',
+    );
+
+    final conn = await MySqlConnection.connect(setting);
+
+    try {
+      final result = await conn.query(
+        'SELECT COUNT(*) FROM users WHERE email = ?',
+        [email],
+      );
+      final count = result.first.values!.first as int;
+
+      if (count > 0) {
+        showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+                  title: const Text("Error"),
+                  content: const Text("Email already registered"),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      child: const Text("OK"),
+                    ),
+                  ],
+                ));
+        return;
+      }
+
+      final encrpyt = BCrypt.hashpw(password, BCrypt.gensalt());
+
+      final insertResult = await conn.query(
+          'INSERT INTO users (email, password) VALUES (?,?)', [email, encrpyt]);
+
+      if (insertResult.affectedRows! > 0) {
+        showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+                  title: const Text("Success"),
+                  content: const Text("Register success"),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const MyLoginPage()));
+                      },
+                      child: const Text("OK"),
+                    ),
+                  ],
+                ));
+      } else {
+        showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+                  title: const Text("User Error"),
+                  content: const Text("Register failed"),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      child: const Text("OK"),
+                    ),
+                  ],
+                ));
+      }
+    } catch (e) {
+      showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+                title: const Text("Server Error"),
+                // content: Text(e.toString()),
+                content: const Text('Server Error Silakan Hubungi Admin'),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text("OK"),
+                  ),
+                ],
+              ));
+    } finally {
+      await conn.close();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -187,11 +311,7 @@ class _MyRegisterPageState extends State<MyRegisterPage> {
                           onPressed: () {
                             // Register the user
                             if (_formKey.currentState!.validate()) {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (context) => const MyLoginPage()),
-                              );
+                              _register();
                             }
                           },
                           child: const Text(

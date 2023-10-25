@@ -2,7 +2,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:manekin/page/dashboard-page.dart';
+
 import 'package:manekin/page/register-page.dart';
+import 'package:mysql1/mysql1.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bcrypt/bcrypt.dart';
 
 class MyLoginPage extends StatefulWidget {
   const MyLoginPage({super.key});
@@ -17,6 +21,81 @@ class _MyLoginPageState extends State<MyLoginPage> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true; // Add this line
   bool _rememberMe = false;
+  late SharedPreferences _prefs;
+
+  Future<bool> isRemembered() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('rememberMe') ?? false;
+  }
+
+  Future<void> _login() async {
+    final email = _emailController.text;
+    final password = _passwordController.text;
+
+    final setting = ConnectionSettings(
+      host: '10.20.114.26',
+      user: 'flutter',
+      password: 'malammakan',
+      db: 'latihan_flutter',
+    );
+
+    final conn = await MySqlConnection.connect(setting);
+
+    try {
+      final result = await conn
+          .query('SELECT password FROM users WHERE email = ?', [email]);
+
+      if (result.isNotEmpty) {
+        final user = result.first;
+        final hashPassword = user['password'] as String;
+        final bool isValidPassword = BCrypt.checkpw(password, hashPassword);
+
+        if (isValidPassword) {
+          await _prefs.setString('email', email);
+          await _prefs.setString('password', password);
+          await _prefs.setBool('rememberMe', _rememberMe);
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const MyDashBoard()),
+          );
+        } else {
+          showDialog(
+              context: context,
+              builder: ((context) => AlertDialog(
+                    title: const Text("Error"),
+                    content: const Text("Invalid email or password"),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                        child: const Text("Close"),
+                      )
+                    ],
+                  )));
+        }
+      }
+    } catch (error) {
+    } finally {
+      await conn.close();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      setState(() {
+        _prefs = prefs;
+        _rememberMe = _prefs.getBool('rememberMe') ?? false;
+        if (_rememberMe) {
+          _emailController.text = _prefs.getString('email') ?? '';
+          _passwordController.text = _prefs.getString('password') ?? '';
+        }
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,7 +238,7 @@ class _MyLoginPageState extends State<MyLoginPage> {
                           value: _rememberMe,
                           onChanged: (value) {
                             setState(() {
-                              _rememberMe = value!;
+                              _rememberMe = value ?? false;
                             });
                           }),
                       const Text(
@@ -177,11 +256,7 @@ class _MyLoginPageState extends State<MyLoginPage> {
                   child: ElevatedButton(
                     onPressed: () {
                       if (_formKey.currentState!.validate()) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const MyDashBoard()),
-                        );
+                        _login();
                       }
                     },
                     style: ElevatedButton.styleFrom(
